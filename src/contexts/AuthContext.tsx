@@ -1,173 +1,221 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
-export interface User {
+export interface BusinessProfile {
   id: string;
-  email: string;
+  user_id: string;
   name: string;
-  companyId?: string;
-}
-
-export interface Company {
-  id: string;
-  name: string;
-  description: string;
-  industry: string;
+  description?: string;
+  industry?: string;
   tone: 'formal' | 'casual' | 'friendly' | 'professional';
-  aiName: string;
-  aiPersonality: string;
-  products: Product[];
-  policies: Policy[];
-  workingHours: WorkingHours;
+  ai_name: string;
+  ai_personality?: string;
+  whatsapp_token?: string;
+  whatsapp_phone_id?: string;
+  webhook_verify_token?: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Product {
   id: string;
+  business_id: string;
   name: string;
-  description: string;
-  price: number;
+  description?: string;
+  price?: number;
   stock: number;
-  image?: string;
-  category: string;
+  image_url?: string;
+  category?: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Policy {
   id: string;
+  business_id: string;
   type: 'delivery' | 'exchange' | 'payment' | 'warranty' | 'general';
   title: string;
   description: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface WorkingHours {
-  monday: { start: string; end: string; active: boolean };
-  tuesday: { start: string; end: string; active: boolean };
-  wednesday: { start: string; end: string; active: boolean };
-  thursday: { start: string; end: string; active: boolean };
-  friday: { start: string; end: string; active: boolean };
-  saturday: { start: string; end: string; active: boolean };
-  sunday: { start: string; end: string; active: boolean };
+export interface Promotion {
+  id: string;
+  business_id: string;
+  title: string;
+  description: string;
+  discount_percentage?: number;
+  discount_amount?: number;
+  valid_from: string;
+  valid_until?: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIConfig {
+  id: string;
+  business_id: string;
+  voice_id?: string;
+  voice_provider: string;
+  response_style: 'concise' | 'balanced' | 'detailed';
+  enable_audio: boolean;
+  enable_buttons: boolean;
+  fallback_message: string;
+  transfer_keywords: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  company: Company | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  updateCompany: (company: Partial<Company>) => Promise<void>;
+  session: Session | null;
+  businessProfile: BusinessProfile | null;
+  login: (email: string, password: string) => Promise<{ error?: any }>;
+  register: (email: string, password: string, name: string) => Promise<{ error?: any }>;
+  logout: () => Promise<void>;
   isLoading: boolean;
+  refreshBusinessProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simular carregamento inicial
   useEffect(() => {
-    const checkAuth = async () => {
-      const savedUser = localStorage.getItem('iara_user');
-      const savedCompany = localStorage.getItem('iara_company');
-      
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          setTimeout(() => {
+            fetchBusinessProfile(session.user.id);
+          }, 0);
+        } else {
+          setBusinessProfile(null);
+        }
+        setIsLoading(false);
       }
-      if (savedCompany) {
-        setCompany(JSON.parse(savedCompany));
-      }
-      
-      setIsLoading(false);
-    };
+    );
 
-    checkAuth();
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchBusinessProfile(session.user.id);
+      } else {
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    // Simular API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      email,
-      name: email.split('@')[0],
-      companyId: '1'
-    };
-    
-    const mockCompany: Company = {
-      id: '1',
-      name: 'Minha Empresa',
-      description: 'Empresa focada em vendas',
-      industry: 'Varejo',
-      tone: 'friendly',
-      aiName: 'IARA',
-      aiPersonality: 'Assistente virtual amigável e focada em vendas',
-      products: [],
-      policies: [],
-      workingHours: {
-        monday: { start: '08:00', end: '18:00', active: true },
-        tuesday: { start: '08:00', end: '18:00', active: true },
-        wednesday: { start: '08:00', end: '18:00', active: true },
-        thursday: { start: '08:00', end: '18:00', active: true },
-        friday: { start: '08:00', end: '18:00', active: true },
-        saturday: { start: '08:00', end: '14:00', active: true },
-        sunday: { start: '08:00', end: '14:00', active: false }
+  const fetchBusinessProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('business_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching business profile:', error);
+        return;
       }
-    };
+      
+      setBusinessProfile(data);
+    } catch (error) {
+      console.error('Error fetching business profile:', error);
+    }
+  };
 
-    setUser(mockUser);
-    setCompany(mockCompany);
-    
-    localStorage.setItem('iara_user', JSON.stringify(mockUser));
-    localStorage.setItem('iara_company', JSON.stringify(mockCompany));
-    
-    setIsLoading(false);
+  const refreshBusinessProfile = async () => {
+    if (user) {
+      await fetchBusinessProfile(user.id);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      return { error };
+    } catch (error) {
+      return { error };
+    }
   };
 
   const register = async (email: string, password: string, name: string) => {
-    setIsLoading(true);
-    
-    // Simular API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
-      email,
-      name,
-      companyId: '1'
-    };
-    
-    setUser(mockUser);
-    setIsLoading(false);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: name
+          }
+        }
+      });
+
+      if (error) return { error };
+
+      // Criar usuário na tabela users
+      if (data.user) {
+        const { error: userError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email,
+              password_hash: '', // Será gerenciado pelo Supabase Auth
+              name: name
+            }
+          ]);
+
+        if (userError) {
+          console.error('Error creating user profile:', userError);
+        }
+      }
+
+      return { error };
+    } catch (error) {
+      return { error };
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setCompany(null);
-    localStorage.removeItem('iara_user');
-    localStorage.removeItem('iara_company');
-  };
-
-  const updateCompany = async (updatedCompany: Partial<Company>) => {
-    if (!company) return;
-    
-    const newCompany = { ...company, ...updatedCompany };
-    setCompany(newCompany);
-    localStorage.setItem('iara_company', JSON.stringify(newCompany));
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
     <AuthContext.Provider value={{
       user,
-      company,
+      session,
+      businessProfile,
       login,
-      logout,
       register,
-      updateCompany,
-      isLoading
+      logout,
+      isLoading,
+      refreshBusinessProfile
     }}>
       {children}
     </AuthContext.Provider>
