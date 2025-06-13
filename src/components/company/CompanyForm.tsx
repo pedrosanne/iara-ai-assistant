@@ -21,7 +21,7 @@ const CompanyForm = () => {
     name: '',
     description: '',
     industry: '',
-    tone: 'friendly' as const,
+    tone: 'friendly' as 'formal' | 'casual' | 'friendly' | 'professional',
     ai_name: 'IARA',
     ai_personality: '',
     whatsapp_token: '',
@@ -186,7 +186,7 @@ const CompanyForm = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="tone">Tom de Voz</Label>
-                  <Select value={formData.tone} onValueChange={(value: any) => setFormData(prev => ({ ...prev, tone: value }))}>
+                  <Select value={formData.tone} onValueChange={(value: 'formal' | 'casual' | 'friendly' | 'professional') => setFormData(prev => ({ ...prev, tone: value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o tom de voz" />
                     </SelectTrigger>

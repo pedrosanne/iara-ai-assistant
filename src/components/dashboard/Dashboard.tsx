@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -13,7 +12,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 
 const Dashboard: React.FC = () => {
-  const { company } = useAuth();
+  const { businessProfile } = useAuth();
 
   const stats = [
     {
@@ -39,10 +38,10 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'IA Ativa',
-      value: company?.name ? 'Online' : 'Offline',
-      change: company?.name ? 'Configurada' : 'Pendente',
+      value: businessProfile?.name ? 'Online' : 'Offline',
+      change: businessProfile?.name ? 'Configurada' : 'Pendente',
       icon: Bot,
-      color: company?.name ? 'text-green-500' : 'text-red-500'
+      color: businessProfile?.name ? 'text-green-500' : 'text-red-500'
     }
   ];
 
@@ -165,11 +164,11 @@ const Dashboard: React.FC = () => {
               <div>
                 <p className="font-medium">Base de Conhecimento</p>
                 <p className="text-sm text-muted-foreground">
-                  {company?.products?.length || 0} produtos configurados
+                  {businessProfile?.products?.length || 0} produtos configurados
                 </p>
               </div>
               <div className={`h-3 w-3 rounded-full ${
-                company?.products?.length ? 'bg-green-500' : 'bg-yellow-500'
+                businessProfile?.products?.length ? 'bg-green-500' : 'bg-yellow-500'
               }`} />
             </div>
             
@@ -177,11 +176,11 @@ const Dashboard: React.FC = () => {
               <div>
                 <p className="font-medium">Personalidade da IA</p>
                 <p className="text-sm text-muted-foreground">
-                  {company?.aiName || 'Não configurado'}
+                  {businessProfile?.aiName || 'Não configurado'}
                 </p>
               </div>
               <div className={`h-3 w-3 rounded-full ${
-                company?.aiName ? 'bg-green-500' : 'bg-red-500'
+                businessProfile?.aiName ? 'bg-green-500' : 'bg-red-500'
               }`} />
             </div>
           </CardContent>
@@ -219,7 +218,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Setup Checklist */}
-      {!company?.name && (
+      {!businessProfile?.name && (
         <Card className="bg-card border-border border-primary/50">
           <CardHeader>
             <CardTitle className="text-primary">Configuração Inicial</CardTitle>

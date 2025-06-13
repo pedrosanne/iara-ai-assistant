@@ -138,7 +138,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      setBusinessProfile(data);
+      // Type assertion to ensure proper typing from database
+      if (data) {
+        const profile: BusinessProfile = {
+          ...data,
+          tone: data.tone as 'formal' | 'casual' | 'friendly' | 'professional'
+        };
+        setBusinessProfile(profile);
+      }
     } catch (error) {
       console.error('Error fetching business profile:', error);
     }

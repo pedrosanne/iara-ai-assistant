@@ -21,7 +21,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => {
-  const { user, company, logout } = useAuth();
+  const { user, businessProfile, logout } = useAuth();
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -52,8 +52,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
       {/* User Info */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="text-sm">
-          <p className="font-medium text-sidebar-foreground">{user?.name}</p>
-          <p className="text-sidebar-foreground/70">{company?.name || 'Empresa não configurada'}</p>
+          <p className="font-medium text-sidebar-foreground">{user?.user_metadata?.name || user?.email}</p>
+          <p className="text-sidebar-foreground/70">{businessProfile?.name || 'Empresa não configurada'}</p>
         </div>
       </div>
 

@@ -31,9 +31,26 @@ export const useBusinessData = () => {
       ]);
 
       if (productsRes.data) setProducts(productsRes.data);
-      if (policiesRes.data) setPolicies(policiesRes.data);
+      
+      if (policiesRes.data) {
+        // Type assertion for policies from database
+        const typedPolicies: Policy[] = policiesRes.data.map(p => ({
+          ...p,
+          type: p.type as 'delivery' | 'exchange' | 'payment' | 'warranty' | 'general'
+        }));
+        setPolicies(typedPolicies);
+      }
+      
       if (promotionsRes.data) setPromotions(promotionsRes.data);
-      if (aiConfigRes.data) setAiConfig(aiConfigRes.data);
+      
+      if (aiConfigRes.data) {
+        // Type assertion for AI config from database
+        const typedAiConfig: AIConfig = {
+          ...aiConfigRes.data,
+          response_style: aiConfigRes.data.response_style as 'concise' | 'balanced' | 'detailed'
+        };
+        setAiConfig(typedAiConfig);
+      }
     } catch (error) {
       console.error('Error fetching business data:', error);
     } finally {
@@ -92,8 +109,12 @@ export const useBusinessData = () => {
 
     if (error) throw error;
     
-    setPolicies(prev => [...prev, data]);
-    return data;
+    const typedPolicy: Policy = {
+      ...data,
+      type: data.type as 'delivery' | 'exchange' | 'payment' | 'warranty' | 'general'
+    };
+    setPolicies(prev => [...prev, typedPolicy]);
+    return typedPolicy;
   };
 
   const updatePolicy = async (id: string, updates: Partial<Policy>) => {
@@ -106,8 +127,12 @@ export const useBusinessData = () => {
 
     if (error) throw error;
     
-    setPolicies(prev => prev.map(p => p.id === id ? data : p));
-    return data;
+    const typedPolicy: Policy = {
+      ...data,
+      type: data.type as 'delivery' | 'exchange' | 'payment' | 'warranty' | 'general'
+    };
+    setPolicies(prev => prev.map(p => p.id === id ? typedPolicy : p));
+    return typedPolicy;
   };
 
   const deletePolicy = async (id: string) => {
@@ -174,8 +199,13 @@ export const useBusinessData = () => {
         .single();
 
       if (error) throw error;
-      setAiConfig(data);
-      return data;
+      
+      const typedConfig: AIConfig = {
+        ...data,
+        response_style: data.response_style as 'concise' | 'balanced' | 'detailed'
+      };
+      setAiConfig(typedConfig);
+      return typedConfig;
     } else {
       // Create new config
       const { data, error } = await supabase
@@ -185,8 +215,13 @@ export const useBusinessData = () => {
         .single();
 
       if (error) throw error;
-      setAiConfig(data);
-      return data;
+      
+      const typedConfig: AIConfig = {
+        ...data,
+        response_style: data.response_style as 'concise' | 'balanced' | 'detailed'
+      };
+      setAiConfig(typedConfig);
+      return typedConfig;
     }
   };
 
