@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -164,23 +165,21 @@ const Dashboard: React.FC = () => {
               <div>
                 <p className="font-medium">Base de Conhecimento</p>
                 <p className="text-sm text-muted-foreground">
-                  {businessProfile?.products?.length || 0} produtos configurados
+                  Produtos configurados
                 </p>
               </div>
-              <div className={`h-3 w-3 rounded-full ${
-                businessProfile?.products?.length ? 'bg-green-500' : 'bg-yellow-500'
-              }`} />
+              <div className="h-3 w-3 bg-yellow-500 rounded-full" />
             </div>
             
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Personalidade da IA</p>
                 <p className="text-sm text-muted-foreground">
-                  {businessProfile?.aiName || 'Não configurado'}
+                  {businessProfile?.ai_name || 'Não configurado'}
                 </p>
               </div>
               <div className={`h-3 w-3 rounded-full ${
-                businessProfile?.aiName ? 'bg-green-500' : 'bg-red-500'
+                businessProfile?.ai_name ? 'bg-green-500' : 'bg-red-500'
               }`} />
             </div>
           </CardContent>
