@@ -48,11 +48,14 @@ serve(async (req) => {
       supabase.from('promotions').select('*').eq('business_id', business_id).eq('active', true)
     ]);
 
-    // Build prompt
-    const prompt = buildTestPrompt(business, products.data || [], policies.data || [], promotions.data || [], message);
-
-    // Generate response with mock AI (replace with DeepSeek when API key is available)
-    const aiResponse = await generateMockResponse(prompt);
+    // Generate response based on real data
+    const aiResponse = generateDataBasedResponse(
+      business, 
+      products.data || [], 
+      policies.data || [], 
+      promotions.data || [], 
+      message
+    );
 
     return new Response(
       JSON.stringify({ 
@@ -76,53 +79,85 @@ serve(async (req) => {
   }
 });
 
-function buildTestPrompt(business: any, products: any[], policies: any[], promotions: any[], userMessage: string): string {
-  return `Você é ${business.ai_name}, assistente virtual da empresa ${business.name}.
-
-INFORMAÇÕES DA EMPRESA:
-- Nome: ${business.name}
-- Descrição: ${business.description || 'Não informado'}
-- Setor: ${business.industry || 'Não informado'}
-- Tom de voz: ${business.tone}
-
-PRODUTOS DISPONÍVEIS (${products.length}):
-${products.length > 0 ? products.map(p => 
-  `- ${p.name}: ${p.description || 'Sem descrição'} | Preço: R$ ${p.price || 'Não informado'} | Estoque: ${p.stock} unidades`
-).join('\n') : 'Nenhum produto cadastrado'}
-
-POLÍTICAS DA EMPRESA (${policies.length}):
-${policies.length > 0 ? policies.map(p => 
-  `- ${p.title} (${p.type}): ${p.description}`
-).join('\n') : 'Nenhuma política cadastrada'}
-
-PROMOÇÕES ATIVAS (${promotions.length}):
-${promotions.length > 0 ? promotions.map(p => 
-  `- ${p.title}: ${p.description}${p.discount_percentage ? ` (${p.discount_percentage}% de desconto)` : ''}${p.discount_amount ? ` (R$ ${p.discount_amount} de desconto)` : ''}`
-).join('\n') : 'Nenhuma promoção ativa'}
-
-MENSAGEM DO CLIENTE: ${userMessage}
-
-Responda como ${business.ai_name}, mantendo o tom ${business.tone} e focando em ajudar o cliente.`;
-}
-
-async function generateMockResponse(prompt: string): Promise<string> {
-  // Mock response for testing - replace with DeepSeek API when available
-  const responses = [
-    "Olá! Sou a IARA e estou aqui para ajudar você! Como posso te auxiliar hoje?",
-    "Ótima pergunta! Com base nos nossos produtos e serviços, posso te ajudar a encontrar exatamente o que você precisa.",
-    "Claro! Vou te apresentar as melhores opções do nosso catálogo. Que tipo de produto você está procurando?",
-    "Perfeito! Temos algumas promoções especiais que podem te interessar. Gostaria de saber mais?",
-    "Entendi sua necessidade! Com certeza posso te ajudar a encontrar a solução ideal. Vamos conversar sobre as opções?"
-  ];
-
-  // Simple mock logic based on prompt content
-  if (prompt.includes('produtos') || prompt.includes('produto')) {
-    return "Temos vários produtos interessantes em nosso catálogo! Posso te apresentar nossas opções e ajudar você a escolher o mais adequado. Que tipo de produto você está procurando?";
+function generateDataBasedResponse(business: any, products: any[], policies: any[], promotions: any[], userMessage: string): string {
+  const messageLower = userMessage.toLowerCase();
+  
+  // Check if user is asking about products
+  if (messageLower.includes('produto') || messageLower.includes('catálogo') || messageLower.includes('vender')) {
+    if (products.length === 0) {
+      return `Olá! Sou a ${business.ai_name} da ${business.name}. No momento não temos produtos cadastrados em nosso sistema. Entre em contato conosco para mais informações sobre nossos serviços.`;
+    }
+    
+    let response = `Olá! Sou a ${business.ai_name} da ${business.name}. Temos ${products.length} produto(s) disponível(is):\n\n`;
+    products.forEach((product, index) => {
+      response += `${index + 1}. ${product.name}`;
+      if (product.description) response += ` - ${product.description}`;
+      if (product.price) response += ` | Preço: R$ ${product.price}`;
+      if (product.stock !== null) response += ` | Estoque: ${product.stock} unidades`;
+      response += '\n';
+    });
+    return response;
   }
   
-  if (prompt.includes('preço') || prompt.includes('valor')) {
-    return "Nossos preços são super competitivos! Além disso, temos algumas promoções especiais que podem te interessar. Quer que eu te conte mais sobre nossos produtos e valores?";
+  // Check if user is asking about prices
+  if (messageLower.includes('preço') || messageLower.includes('valor') || messageLower.includes('cust')) {
+    const productsWithPrice = products.filter(p => p.price);
+    if (productsWithPrice.length === 0) {
+      return `Olá! Sou a ${business.ai_name} da ${business.name}. Para informações sobre preços, entre em contato conosco diretamente.`;
+    }
+    
+    let response = `Olá! Sou a ${business.ai_name} da ${business.name}. Aqui estão nossos preços:\n\n`;
+    productsWithPrice.forEach((product, index) => {
+      response += `${index + 1}. ${product.name}: R$ ${product.price}\n`;
+    });
+    return response;
   }
-
-  return responses[Math.floor(Math.random() * responses.length)];
+  
+  // Check if user is asking about promotions
+  if (messageLower.includes('promoção') || messageLower.includes('desconto') || messageLower.includes('oferta')) {
+    if (promotions.length === 0) {
+      return `Olá! Sou a ${business.ai_name} da ${business.name}. No momento não temos promoções ativas. Fique atento às nossas redes sociais para novidades!`;
+    }
+    
+    let response = `Olá! Sou a ${business.ai_name} da ${business.name}. Temos ${promotions.length} promoção(ões) ativa(s):\n\n`;
+    promotions.forEach((promo, index) => {
+      response += `${index + 1}. ${promo.title}: ${promo.description}`;
+      if (promo.discount_percentage) response += ` (${promo.discount_percentage}% de desconto)`;
+      if (promo.discount_amount) response += ` (R$ ${promo.discount_amount} de desconto)`;
+      response += '\n';
+    });
+    return response;
+  }
+  
+  // Check if user is asking about policies
+  if (messageLower.includes('política') || messageLower.includes('entrega') || messageLower.includes('troca') || messageLower.includes('pagamento')) {
+    if (policies.length === 0) {
+      return `Olá! Sou a ${business.ai_name} da ${business.name}. Para informações sobre nossas políticas, entre em contato conosco diretamente.`;
+    }
+    
+    let response = `Olá! Sou a ${business.ai_name} da ${business.name}. Aqui estão nossas políticas:\n\n`;
+    policies.forEach((policy, index) => {
+      response += `${index + 1}. ${policy.title}: ${policy.description}\n`;
+    });
+    return response;
+  }
+  
+  // Default greeting with business info
+  let response = `Olá! Sou a ${business.ai_name}, assistente virtual da ${business.name}.`;
+  
+  if (business.description) {
+    response += ` ${business.description}`;
+  }
+  
+  response += ' Como posso ajudar você hoje?';
+  
+  if (products.length > 0) {
+    response += ` Temos ${products.length} produto(s) disponível(is).`;
+  }
+  
+  if (promotions.length > 0) {
+    response += ` Também temos ${promotions.length} promoção(ões) ativa(s).`;
+  }
+  
+  return response;
 }
