@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -59,7 +60,15 @@ serve(async (req) => {
       console.log('Webhook verification:', { mode, token });
       
       if (mode === 'subscribe' && token) {
-        // Verify token against business profile
+        // Verify token against business profile or environment
+        const expectedToken = Deno.env.get('WHATSAPP_VERIFY_TOKEN');
+        
+        if (token === expectedToken) {
+          console.log('Webhook verified successfully');
+          return new Response(challenge, { headers: corsHeaders });
+        }
+        
+        // Also check against business profiles
         const { data: business } = await supabase
           .from('business_profiles')
           .select('*')
@@ -162,11 +171,11 @@ async function processIncomingMessage(supabase: any, message: WhatsAppMessage, p
   if (message.type === 'text' && message.text) {
     messageContent = message.text.body;
   } else if (message.type === 'audio' && message.audio) {
-    // Download and transcribe audio using DeepSeek
+    // Download and transcribe audio using OpenAI Whisper
     try {
-      const audioUrl = await downloadWhatsAppMedia(business.whatsapp_token, message.audio.id);
+      const audioUrl = await downloadWhatsAppMedia(business.whatsapp_token || Deno.env.get('WHATSAPP_TOKEN'), message.audio.id);
       mediaUrl = audioUrl;
-      transcription = await transcribeAudioWithDeepSeek(audioUrl);
+      transcription = await transcribeAudioWithWhisper(audioUrl);
       messageContent = transcription || 'Áudio não pôde ser transcrito';
     } catch (error) {
       console.error('Error processing audio:', error);
@@ -200,7 +209,7 @@ async function processIncomingMessage(supabase: any, message: WhatsAppMessage, p
 
 async function downloadWhatsAppMedia(accessToken: string, mediaId: string): Promise<string> {
   // Get media URL from WhatsApp API
-  const mediaResponse = await fetch(`https://graph.facebook.com/v17.0/${mediaId}`, {
+  const mediaResponse = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`
     }
@@ -210,10 +219,10 @@ async function downloadWhatsAppMedia(accessToken: string, mediaId: string): Prom
   return mediaData.url;
 }
 
-async function transcribeAudioWithDeepSeek(audioUrl: string): Promise<string> {
-  const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
-  if (!deepseekApiKey) {
-    throw new Error('DeepSeek API key not configured');
+async function transcribeAudioWithWhisper(audioUrl: string): Promise<string> {
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured');
   }
 
   try {
@@ -221,14 +230,26 @@ async function transcribeAudioWithDeepSeek(audioUrl: string): Promise<string> {
     const audioResponse = await fetch(audioUrl);
     const audioBuffer = await audioResponse.arrayBuffer();
     
-    // Convert to base64 for DeepSeek
-    const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
-    
-    // Use DeepSeek for transcription (note: DeepSeek primarily handles text, so this is a fallback)
-    // For now, we'll return a placeholder since DeepSeek doesn't have native audio transcription
-    // In production, you might want to use a different STT service or keep Whisper
-    console.log('Audio transcription requested, but DeepSeek doesn\'t support STT natively');
-    return 'Áudio recebido (transcrição não disponível no momento)';
+    // Create form data for Whisper API
+    const formData = new FormData();
+    formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'audio.ogg');
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'pt');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error(`Whisper API error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.text;
     
   } catch (error) {
     console.error('Error transcribing audio:', error);
@@ -275,10 +296,9 @@ async function generateAndSendResponse(supabase: any, business: any, conversatio
     try {
       const audioBase64 = await generateGoogleTTSAudio(aiResponse);
       if (audioBase64) {
-        // Upload audio to a temporary storage or send directly
-        // For now, we'll send as a document since WhatsApp needs a public URL
+        // For now, we'll just log that audio was generated
+        // In production, you'd upload this to Supabase Storage and send the URL
         console.log('Audio generated successfully with Google TTS');
-        // Note: In production, you'd upload this to Supabase Storage and get a public URL
       }
     } catch (audioError) {
       console.error('Error generating audio:', audioError);
@@ -366,7 +386,7 @@ INSTRUÇÕES:
 - Use as informações acima para responder com precisão
 - Considere o histórico da conversa para dar continuidade natural
 - Se não souber algo, seja honesto mas tente direcionar para produtos/serviços disponíveis
-- Mantenha respostas concisas mas informativas (máximo 200 caracteres para WhatsApp)
+- Mantenha respostas concisas mas informativas (máximo 300 caracteres para WhatsApp)
 - Sempre termine incentivando uma ação (compra, mais informações, etc.)
 
 MENSAGEM ATUAL DO CLIENTE: ${userMessage}
@@ -478,17 +498,4 @@ async function sendWhatsAppMessage(accessToken: string, to: string, text: string
   }
   
   return data;
-}
-
-async function sendWhatsAppAudio(accessToken: string, to: string, audioBase64: string) {
-  // Note: WhatsApp requires audio to be publicly accessible via URL
-  // This would require uploading the base64 audio to Supabase Storage first
-  // For now, we'll log that audio was generated
-  console.log('Audio generated and ready to send (requires storage upload implementation)');
-  
-  // Implementation would require:
-  // 1. Convert base64 to blob
-  // 2. Upload to Supabase Storage
-  // 3. Get public URL
-  // 4. Send via WhatsApp API with audio type
 }

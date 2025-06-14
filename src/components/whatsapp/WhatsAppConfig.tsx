@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Phone, CheckCircle, AlertCircle, Copy, ExternalLink } from 'lucide-react';
 
@@ -23,7 +23,7 @@ const WhatsAppConfig = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const webhookUrl = `${window.location.origin.replace('localhost:5173', 'pzgkozweshaucfbfdorz.supabase.co')}/functions/v1/whatsapp-webhook`;
+  const webhookUrl = `https://pzgkozweshaucfbfdorz.supabase.co/functions/v1/whatsapp-webhook`;
 
   useEffect(() => {
     if (businessProfile) {
@@ -79,7 +79,10 @@ const WhatsAppConfig = () => {
 
       if (error) throw error;
 
-      setConfig(prev => ({ ...prev, is_configured: !!(config.whatsapp_phone_id && config.whatsapp_token && config.webhook_verify_token) }));
+      setConfig(prev => ({ 
+        ...prev, 
+        is_configured: !!(config.whatsapp_phone_id && config.whatsapp_token && config.webhook_verify_token) 
+      }));
 
       toast({
         title: 'Configuração salva',
