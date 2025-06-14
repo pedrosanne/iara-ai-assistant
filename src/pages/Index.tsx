@@ -1,26 +1,23 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import LoginForm from '@/components/auth/LoginForm';
-import Sidebar from '@/components/layout/Sidebar';
+import { Sidebar } from '@/components/layout/Sidebar';
 import Dashboard from '@/components/dashboard/Dashboard';
 import CompanyForm from '@/components/company/CompanyForm';
 import ProductManager from '@/components/products/ProductManager';
 import ConversationSimulator from '@/components/simulator/ConversationSimulator';
+import LeadsManager from '@/components/leads/LeadsManager';
+import LoginForm from '@/components/auth/LoginForm';
 
 const Index = () => {
-  const { user, isLoading } = useAuth();
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const { user, loading } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
 
-  console.log('Index: Render state - isLoading:', isLoading, 'user:', user?.id || 'none');
-
-  if (isLoading) {
-    console.log('Index: Showing loading screen');
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Carregando...</p>
         </div>
       </div>
@@ -28,16 +25,8 @@ const Index = () => {
   }
 
   if (!user) {
-    console.log('Index: User not authenticated, showing login form');
-    return (
-      <LoginForm 
-        onToggleMode={() => setIsRegisterMode(!isRegisterMode)}
-        isRegisterMode={isRegisterMode}
-      />
-    );
+    return <LoginForm />;
   }
-
-  console.log('Index: User authenticated, showing dashboard');
 
   const renderContent = () => {
     switch (activeSection) {
@@ -47,50 +36,67 @@ const Index = () => {
         return <CompanyForm />;
       case 'products':
         return <ProductManager />;
-      case 'simulator':
-        return <ConversationSimulator />;
       case 'policies':
         return (
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Políticas da Empresa</h1>
-              <p className="text-muted-foreground">Em desenvolvimento...</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Políticas Comerciais</h1>
+              <p className="text-muted-foreground">Gerencie suas políticas de entrega, troca, pagamento e garantias</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
             </div>
           </div>
         );
-      case 'ai-config':
+      case 'promotions':
         return (
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Configuração da IA</h1>
-              <p className="text-muted-foreground">Em desenvolvimento...</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Promoções</h1>
+              <p className="text-muted-foreground">Gerencie suas ofertas e campanhas promocionais</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
             </div>
           </div>
         );
-      case 'working-hours':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Horários de Funcionamento</h1>
-              <p className="text-muted-foreground">Em desenvolvimento...</p>
-            </div>
-          </div>
-        );
+      case 'simulator':
+        return <ConversationSimulator />;
+      case 'leads':
+        return <LeadsManager />;
       case 'conversations':
         return (
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Histórico de Conversas</h1>
-              <p className="text-muted-foreground">Em desenvolvimento...</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Conversas WhatsApp</h1>
+              <p className="text-muted-foreground">Histórico completo de conversas com clientes</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
             </div>
           </div>
         );
-      case 'settings':
+      case 'whatsapp':
         return (
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Configurações</h1>
-              <p className="text-muted-foreground">Em desenvolvimento...</p>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Configuração WhatsApp</h1>
+              <p className="text-muted-foreground">Configure a integração com WhatsApp Business API</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
+            </div>
+          </div>
+        );
+      case 'analytics':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Analytics</h1>
+              <p className="text-muted-foreground">Relatórios e métricas de desempenho</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-8 text-center">
+              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
             </div>
           </div>
         );
@@ -100,12 +106,21 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
-      <div className="flex-1 overflow-auto">
-        <main className="p-6">
-          {renderContent()}
-        </main>
+    <div className="min-h-screen bg-background">
+      <div className="flex">
+        <div className="hidden lg:block w-80 border-r bg-card">
+          <Sidebar 
+            activeSection={activeSection} 
+            onSectionChange={setActiveSection}
+            className="h-screen"
+          />
+        </div>
+        
+        <div className="flex-1">
+          <main className="p-6 lg:p-8">
+            {renderContent()}
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Send, Bot, User, Loader2, MessageCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, MessageCircle, RefreshCw, Mic, Volume2 } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -23,11 +23,53 @@ const ConversationSimulator = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [contextInfo, setContextInfo] = useState<any>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Add welcome message when component mounts
     if (businessProfile && messages.length === 0) {
+      initializeConversation();
+    }
+  }, [businessProfile]);
+
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const initializeConversation = async () => {
+    if (!businessProfile) return;
+
+    // Create a simulation conversation
+    try {
+      const { data: conversation, error } = await supabase
+        .from('conversations')
+        .insert([{
+          business_id: businessProfile.id,
+          whatsapp_contact_id: 'simulator_' + Date.now(),
+          contact_phone: 'simulator',
+          contact_name: 'Simulador',
+          status: 'active'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setConversationId(conversation.id);
+      
+      // Add welcome message
+      setMessages([{
+        id: '1',
+        content: `Olá! Eu sou a ${businessProfile.ai_name}, assistente virtual da ${businessProfile.name}. Como posso ajudar você hoje?`,
+        sender: 'ai',
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      // Fallback to simple welcome without conversation tracking
       setMessages([{
         id: '1',
         content: `Olá! Eu sou a ${businessProfile.ai_name}, assistente virtual da ${businessProfile.name}. Como posso ajudar você hoje?`,
@@ -35,14 +77,7 @@ const ConversationSimulator = () => {
         timestamp: new Date()
       }]);
     }
-  }, [businessProfile]);
-
-  useEffect(() => {
-    // Scroll to bottom when new messages are added
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages]);
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +95,12 @@ const ConversationSimulator = () => {
     setIsLoading(true);
 
     try {
-      // Call test AI function
-      const { data, error } = await supabase.functions.invoke('test-ai', {
+      // Call the new AI chat function
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: {
           business_id: businessProfile.id,
-          message: userMessage.content
+          message: userMessage.content,
+          conversation_id: conversationId
         }
       });
 
@@ -78,11 +114,7 @@ const ConversationSimulator = () => {
       };
 
       setMessages(prev => [...prev, aiMessage]);
-
-      // Show context info
-      if (data.context_used) {
-        console.log('Contexto usado:', data.context_used);
-      }
+      setContextInfo(data.context_used);
 
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -106,15 +138,11 @@ const ConversationSimulator = () => {
     }
   };
 
-  const clearConversation = () => {
-    if (businessProfile) {
-      setMessages([{
-        id: '1',
-        content: `Olá! Eu sou a ${businessProfile.ai_name}, assistente virtual da ${businessProfile.name}. Como posso ajudar você hoje?`,
-        sender: 'ai',
-        timestamp: new Date()
-      }]);
-    }
+  const clearConversation = async () => {
+    setMessages([]);
+    setConversationId(null);
+    setContextInfo(null);
+    await initializeConversation();
   };
 
   const formatTime = (date: Date) => {
@@ -150,10 +178,11 @@ const ConversationSimulator = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Simulador de Conversa</h1>
-          <p className="text-muted-foreground">Teste como a IARA responderá aos seus clientes</p>
+          <p className="text-muted-foreground">Teste como a IARA responderá aos seus clientes com dados reais</p>
         </div>
         
-        <Button variant="outline" onClick={clearConversation}>
+        <Button variant="outline" onClick={clearConversation} disabled={isLoading}>
+          <RefreshCw className="h-4 w-4 mr-2" />
           Nova Conversa
         </Button>
       </div>
@@ -165,9 +194,14 @@ const ConversationSimulator = () => {
               <CardTitle className="flex items-center gap-2">
                 <Bot className="h-5 w-5" />
                 Conversa com {businessProfile.ai_name}
+                {contextInfo && (
+                  <Badge variant="secondary" className="ml-2">
+                    IA Real com DeepSeek
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
-                Simule uma conversa real com seu cliente
+                Simulação real com seus dados cadastrados
               </CardDescription>
             </CardHeader>
             
@@ -193,7 +227,7 @@ const ConversationSimulator = () => {
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted'
                         }`}>
-                          <p className="text-sm">{message.content}</p>
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                           <p className={`text-xs mt-1 opacity-70`}>
                             {formatTime(message.timestamp)}
                           </p>
@@ -211,7 +245,7 @@ const ConversationSimulator = () => {
                         <div className="bg-muted rounded-lg p-3">
                           <div className="flex items-center gap-2">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-sm">Digitando...</span>
+                            <span className="text-sm">Processando com DeepSeek...</span>
                           </div>
                         </div>
                       </div>
@@ -258,19 +292,51 @@ const ConversationSimulator = () => {
                 <div className="text-sm font-medium">Empresa</div>
                 <div className="text-sm text-muted-foreground">{businessProfile.name}</div>
               </div>
+
+              <div>
+                <div className="text-sm font-medium">Motor de IA</div>
+                <Badge variant="outline">DeepSeek Chat</Badge>
+              </div>
             </CardContent>
           </Card>
+
+          {contextInfo && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Contexto Usado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Produtos:</span>
+                  <Badge variant="secondary">{contextInfo.products_count}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Políticas:</span>
+                  <Badge variant="secondary">{contextInfo.policies_count}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Promoções:</span>
+                  <Badge variant="secondary">{contextInfo.promotions_count}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Histórico:</span>
+                  <Badge variant="secondary">{contextInfo.conversation_history_count}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Dicas de Teste</CardTitle>
+              <CardTitle className="text-lg">Exemplos de Teste</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>• Pergunte sobre produtos</p>
-              <p>• Peça informações de preços</p>
-              <p>• Teste políticas da empresa</p>
-              <p>• Simule dúvidas comuns</p>
-              <p>• Veja como a IA lida com pedidos</p>
+              <p>• "Quais produtos vocês têm?"</p>
+              <p>• "Qual é o preço do [produto]?"</p>
+              <p>• "Vocês têm alguma promoção?"</p>
+              <p>• "Como funciona a entrega?"</p>
+              <p>• "Qual é a política de troca?"</p>
+              <p>• "Gostaria de fazer um pedido"</p>
             </CardContent>
           </Card>
         </div>

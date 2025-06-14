@@ -1,107 +1,129 @@
 
 import React from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
-  Bot, 
+  Home, 
   Building2, 
   Package, 
-  FileText, 
-  MessageSquare, 
-  BarChart3, 
-  Settings, 
-  LogOut,
-  Brain,
-  Clock
+  MessageCircle, 
+  Users, 
+  Settings,
+  FileText,
+  Tag,
+  Bot,
+  Phone,
+  BarChart3
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
 
-interface SidebarProps {
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   activeSection: string;
   onSectionChange: (section: string) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => {
-  const { user, businessProfile, logout } = useAuth();
+const menuItems = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: Home,
+    description: 'Visão geral e estatísticas'
+  },
+  {
+    id: 'company',
+    label: 'Configuração da Empresa',
+    icon: Building2,
+    description: 'Dados da empresa e IA'
+  },
+  {
+    id: 'products',
+    label: 'Produtos e Serviços',
+    icon: Package,
+    description: 'Catálogo de produtos'
+  },
+  {
+    id: 'policies',
+    label: 'Políticas Comerciais',
+    icon: FileText,
+    description: 'Regras e políticas'
+  },
+  {
+    id: 'promotions',
+    label: 'Promoções',
+    icon: Tag,
+    description: 'Ofertas e descontos'
+  },
+  {
+    id: 'simulator',
+    label: 'Simulador de Conversa',
+    icon: Bot,
+    description: 'Teste a IA real'
+  },
+  {
+    id: 'leads',
+    label: 'Gestão de Leads',
+    icon: Users,
+    description: 'Clientes potenciais'
+  },
+  {
+    id: 'conversations',
+    label: 'Conversas WhatsApp',
+    icon: MessageCircle,
+    description: 'Histórico de conversas'
+  },
+  {
+    id: 'whatsapp',
+    label: 'Configuração WhatsApp',
+    icon: Phone,
+    description: 'Integração WhatsApp'
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    description: 'Relatórios e métricas'
+  }
+];
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'company', label: 'Empresa', icon: Building2 },
-    { id: 'products', label: 'Produtos', icon: Package },
-    { id: 'policies', label: 'Políticas', icon: FileText },
-    { id: 'ai-config', label: 'IA Config', icon: Brain },
-    { id: 'working-hours', label: 'Horários', icon: Clock },
-    { id: 'conversations', label: 'Conversas', icon: MessageSquare },
-    { id: 'simulator', label: 'Simulador', icon: Bot },
-  ];
-
+export function Sidebar({ className, activeSection, onSectionChange }: SidebarProps) {
   return (
-    <div className="w-64 bg-sidebar h-screen flex flex-col border-r border-sidebar-border">
-      {/* Header */}
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
+    <div className={cn("pb-12", className)}>
+      <div className="space-y-4 py-4">
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-2 mb-6">
+            <Bot className="h-8 w-8 text-primary" />
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">IARA AI</h2>
+              <p className="text-xs text-muted-foreground">Assistente Inteligente</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-sidebar-foreground">IARA</h1>
-            <p className="text-sm text-sidebar-foreground/70">IA de Relacionamento</p>
-          </div>
+          
+          <ScrollArea className="h-[calc(100vh-140px)]">
+            <div className="space-y-1">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.id}
+                    variant={activeSection === item.id ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start gap-3 h-auto p-3",
+                      activeSection === item.id && "bg-secondary"
+                    )}
+                    onClick={() => onSectionChange(item.id)}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex flex-col items-start text-left">
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.description}</span>
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+          </ScrollArea>
         </div>
-      </div>
-
-      {/* User Info */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="text-sm">
-          <p className="font-medium text-sidebar-foreground">{user?.user_metadata?.name || user?.email}</p>
-          <p className="text-sidebar-foreground/70">{businessProfile?.name || 'Empresa não configurada'}</p>
-        </div>
-      </div>
-
-      {/* Menu */}
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.id}>
-                <button
-                  onClick={() => onSectionChange(item.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                    activeSection === item.id
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
-        <Button
-          onClick={() => onSectionChange('settings')}
-          variant="ghost"
-          className="w-full justify-start mb-2 text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <Settings className="w-5 h-5 mr-3" />
-          Configurações
-        </Button>
-        <Button
-          onClick={logout}
-          variant="ghost"
-          className="w-full justify-start text-red-400 hover:bg-red-500/10"
-        >
-          <LogOut className="w-5 h-5 mr-3" />
-          Sair
-        </Button>
       </div>
     </div>
   );
-};
-
-export default Sidebar;
+}
