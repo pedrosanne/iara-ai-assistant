@@ -10,10 +10,11 @@ import LeadsManager from '@/components/leads/LeadsManager';
 import LoginForm from '@/components/auth/LoginForm';
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -25,7 +26,12 @@ const Index = () => {
   }
 
   if (!user) {
-    return <LoginForm />;
+    return (
+      <LoginForm 
+        onToggleMode={() => setIsRegisterMode(!isRegisterMode)}
+        isRegisterMode={isRegisterMode}
+      />
+    );
   }
 
   const renderContent = () => {
