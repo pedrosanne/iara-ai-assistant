@@ -93,25 +93,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Setting up auth listeners...');
+    console.log('AuthProvider: Initializing auth...');
     
+    let mounted = true;
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
+        console.log('AuthProvider: Auth state changed:', event, session?.user?.id);
+        
+        if (!mounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          console.log('AuthProvider: User authenticated, fetching profile...');
           // Defer the business profile fetch to avoid blocking the auth state update
           setTimeout(() => {
-            fetchBusinessProfile(session.user.id);
+            if (mounted) {
+              fetchBusinessProfile(session.user.id);
+            }
           }, 100);
         } else {
+          console.log('AuthProvider: User logged out');
           setBusinessProfile(null);
         }
         
-        // Set loading to false after auth state is processed
+        // Always set loading to false after processing auth state
         setIsLoading(false);
       }
     );
@@ -119,36 +128,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check for existing session
     const initializeAuth = async () => {
       try {
+        console.log('AuthProvider: Checking for existing session...');
         const { data: { session }, error } = await supabase.auth.getSession();
-        console.log('Initial session check:', session?.user?.id, error);
         
         if (error) {
-          console.error('Error getting session:', error);
-          setIsLoading(false);
+          console.error('AuthProvider: Error getting session:', error);
+          if (mounted) {
+            setIsLoading(false);
+          }
           return;
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        console.log('AuthProvider: Initial session check:', session?.user?.id ? 'Found session' : 'No session');
         
-        if (session?.user) {
-          await fetchBusinessProfile(session.user.id);
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            await fetchBusinessProfile(session.user.id);
+          }
+          
+          setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('AuthProvider: Error initializing auth:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchBusinessProfile = async (userId: string) => {
     try {
-      console.log('Fetching business profile for user:', userId);
+      console.log('AuthProvider: Fetching business profile for user:', userId);
       const { data, error } = await supabase
         .from('business_profiles')
         .select('*')
@@ -156,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
       
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching business profile:', error);
+        console.error('AuthProvider: Error fetching business profile:', error);
         return;
       }
       
@@ -165,14 +186,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...data,
           tone: data.tone as 'formal' | 'casual' | 'friendly' | 'professional'
         };
-        console.log('Business profile loaded:', profile.name);
+        console.log('AuthProvider: Business profile loaded:', profile.name);
         setBusinessProfile(profile);
       } else {
-        console.log('No business profile found');
+        console.log('AuthProvider: No business profile found');
         setBusinessProfile(null);
       }
     } catch (error) {
-      console.error('Error fetching business profile:', error);
+      console.error('AuthProvider: Error fetching business profile:', error);
     }
   };
 
@@ -184,28 +205,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Attempting login for:', email);
+      console.log('AuthProvider: Attempting login for:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) {
-        console.error('Login error:', error);
+        console.error('AuthProvider: Login error:', error);
       } else {
-        console.log('Login successful:', data.user?.id);
+        console.log('AuthProvider: Login successful:', data.user?.id);
       }
       
       return { error };
     } catch (error) {
-      console.error('Login exception:', error);
+      console.error('AuthProvider: Login exception:', error);
       return { error };
     }
   };
 
   const register = async (email: string, password: string, name: string) => {
     try {
-      console.log('Attempting registration for:', email);
+      console.log('AuthProvider: Attempting registration for:', email);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -218,11 +239,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        console.error('Registration error:', error);
+        console.error('AuthProvider: Registration error:', error);
         return { error };
       }
 
-      console.log('Registration successful:', data.user?.id);
+      console.log('AuthProvider: Registration successful:', data.user?.id);
 
       // Create user in the users table
       if (data.user) {
@@ -238,19 +259,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ]);
 
         if (userError) {
-          console.error('Error creating user profile:', userError);
+          console.error('AuthProvider: Error creating user profile:', userError);
         }
       }
 
       return { error };
     } catch (error) {
-      console.error('Registration exception:', error);
+      console.error('AuthProvider: Registration exception:', error);
       return { error };
     }
   };
 
   const logout = async () => {
-    console.log('Logging out...');
+    console.log('AuthProvider: Logging out...');
     await supabase.auth.signOut();
   };
 

@@ -13,7 +13,10 @@ const Index = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
 
+  console.log('Index: Render state - isLoading:', isLoading, 'user:', user?.id || 'none');
+
   if (isLoading) {
+    console.log('Index: Showing loading screen');
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -25,6 +28,7 @@ const Index = () => {
   }
 
   if (!user) {
+    console.log('Index: User not authenticated, showing login form');
     return (
       <LoginForm 
         onToggleMode={() => setIsRegisterMode(!isRegisterMode)}
@@ -32,6 +36,8 @@ const Index = () => {
       />
     );
   }
+
+  console.log('Index: User authenticated, showing dashboard');
 
   const renderContent = () => {
     switch (activeSection) {

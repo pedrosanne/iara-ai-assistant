@@ -28,34 +28,33 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode, isRegisterMode }) =
       if (isRegisterMode) {
         if (!name.trim()) {
           toast.error('Nome é obrigatório');
-          setIsLoading(false);
           return;
         }
         
-        console.log('Registering user...');
+        console.log('LoginForm: Registering user...');
         const { error } = await register(email, password, name);
         
         if (error) {
-          console.error('Registration failed:', error);
+          console.error('LoginForm: Registration failed:', error);
           toast.error(error.message || 'Erro ao criar conta');
         } else {
           toast.success('Conta criada com sucesso!');
-          console.log('Registration successful, user should be redirected');
+          console.log('LoginForm: Registration successful');
         }
       } else {
-        console.log('Logging in user...');
+        console.log('LoginForm: Logging in user...');
         const { error } = await login(email, password);
         
         if (error) {
-          console.error('Login failed:', error);
+          console.error('LoginForm: Login failed:', error);
           toast.error(error.message || 'Erro ao fazer login');
         } else {
           toast.success('Login realizado com sucesso!');
-          console.log('Login successful, user should be redirected');
+          console.log('LoginForm: Login successful');
         }
       }
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error('LoginForm: Authentication error:', error);
       toast.error(isRegisterMode ? 'Erro ao criar conta' : 'Erro ao fazer login');
     } finally {
       setIsLoading(false);
