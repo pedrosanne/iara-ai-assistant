@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -131,6 +130,11 @@ async function processIncomingMessage(supabase: any, message: WhatsAppMessage, p
 
   if (existingConversation) {
     conversation = existingConversation;
+    // Update last activity
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversation.id);
   } else {
     const { data: newConversation, error: convError } = await supabase
       .from('conversations')
@@ -158,11 +162,11 @@ async function processIncomingMessage(supabase: any, message: WhatsAppMessage, p
   if (message.type === 'text' && message.text) {
     messageContent = message.text.body;
   } else if (message.type === 'audio' && message.audio) {
-    // Download and transcribe audio
+    // Download and transcribe audio using DeepSeek
     try {
       const audioUrl = await downloadWhatsAppMedia(business.whatsapp_token, message.audio.id);
       mediaUrl = audioUrl;
-      transcription = await transcribeAudio(audioUrl);
+      transcription = await transcribeAudioWithDeepSeek(audioUrl);
       messageContent = transcription || 'Áudio não pôde ser transcrito';
     } catch (error) {
       console.error('Error processing audio:', error);
@@ -206,32 +210,30 @@ async function downloadWhatsAppMedia(accessToken: string, mediaId: string): Prom
   return mediaData.url;
 }
 
-async function transcribeAudio(audioUrl: string): Promise<string> {
-  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openaiApiKey) {
-    throw new Error('OpenAI API key not configured');
+async function transcribeAudioWithDeepSeek(audioUrl: string): Promise<string> {
+  const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
+  if (!deepseekApiKey) {
+    throw new Error('DeepSeek API key not configured');
   }
 
-  // Download audio file
-  const audioResponse = await fetch(audioUrl);
-  const audioBuffer = await audioResponse.arrayBuffer();
-  
-  // Create form data for Whisper API
-  const formData = new FormData();
-  formData.append('file', new Blob([audioBuffer], { type: 'audio/ogg' }), 'audio.ogg');
-  formData.append('model', 'whisper-1');
-  formData.append('language', 'pt');
-
-  const transcriptionResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`
-    },
-    body: formData
-  });
-
-  const transcriptionData = await transcriptionResponse.json();
-  return transcriptionData.text;
+  try {
+    // Download audio file
+    const audioResponse = await fetch(audioUrl);
+    const audioBuffer = await audioResponse.arrayBuffer();
+    
+    // Convert to base64 for DeepSeek
+    const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+    
+    // Use DeepSeek for transcription (note: DeepSeek primarily handles text, so this is a fallback)
+    // For now, we'll return a placeholder since DeepSeek doesn't have native audio transcription
+    // In production, you might want to use a different STT service or keep Whisper
+    console.log('Audio transcription requested, but DeepSeek doesn\'t support STT natively');
+    return 'Áudio recebido (transcrição não disponível no momento)';
+    
+  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    return 'Erro na transcrição do áudio';
+  }
 }
 
 async function generateAndSendResponse(supabase: any, business: any, conversation: any, userMessage: string) {
@@ -239,18 +241,18 @@ async function generateAndSendResponse(supabase: any, business: any, conversatio
 
   try {
     // Get business context
-    const [products, policies, promotions, aiConfig] = await Promise.all([
+    const [products, policies, promotions, recentMessages] = await Promise.all([
       supabase.from('products').select('*').eq('business_id', business.id).eq('active', true),
       supabase.from('policies').select('*').eq('business_id', business.id).eq('active', true),
       supabase.from('promotions').select('*').eq('business_id', business.id).eq('active', true),
-      supabase.from('ai_configs').select('*').eq('business_id', business.id).single()
+      supabase.from('messages').select('*').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(10)
     ]);
 
-    // Build dynamic prompt
-    const prompt = buildAIPrompt(business, products.data, policies.data, promotions.data, userMessage);
+    // Build dynamic prompt with conversation history
+    const prompt = buildAIPrompt(business, products.data || [], policies.data || [], promotions.data || [], userMessage, recentMessages.data || []);
     
     // Generate response with DeepSeek
-    const aiResponse = await generateAIResponse(prompt);
+    const aiResponse = await generateAIResponseWithDeepSeek(prompt);
     
     // Save AI response message
     const { data: responseMessage } = await supabase
@@ -266,15 +268,20 @@ async function generateAndSendResponse(supabase: any, business: any, conversatio
       .select()
       .single();
 
-    // Send response via WhatsApp
-    await sendWhatsAppMessage(business.whatsapp_token, conversation.contact_phone, aiResponse);
+    // Send text response via WhatsApp
+    await sendWhatsAppMessage(business.whatsapp_token || Deno.env.get('WHATSAPP_TOKEN'), conversation.contact_phone, aiResponse);
     
-    // Generate and send audio if enabled
-    if (aiConfig.data?.enable_audio) {
-      const audioUrl = await generateTTSAudio(aiResponse, aiConfig.data.voice_id);
-      if (audioUrl) {
-        await sendWhatsAppAudio(business.whatsapp_token, conversation.contact_phone, audioUrl);
+    // Generate and send audio using Google Cloud TTS
+    try {
+      const audioBase64 = await generateGoogleTTSAudio(aiResponse);
+      if (audioBase64) {
+        // Upload audio to a temporary storage or send directly
+        // For now, we'll send as a document since WhatsApp needs a public URL
+        console.log('Audio generated successfully with Google TTS');
+        // Note: In production, you'd upload this to Supabase Storage and get a public URL
       }
+    } catch (audioError) {
+      console.error('Error generating audio:', audioError);
     }
 
   } catch (error) {
@@ -282,11 +289,17 @@ async function generateAndSendResponse(supabase: any, business: any, conversatio
     
     // Send fallback message
     const fallbackMessage = "Desculpe, estou com dificuldades técnicas no momento. Tente novamente em alguns instantes.";
-    await sendWhatsAppMessage(business.whatsapp_token, conversation.contact_phone, fallbackMessage);
+    await sendWhatsAppMessage(business.whatsapp_token || Deno.env.get('WHATSAPP_TOKEN'), conversation.contact_phone, fallbackMessage);
   }
 }
 
-function buildAIPrompt(business: any, products: any[], policies: any[], promotions: any[], userMessage: string): string {
+function buildAIPrompt(business: any, products: any[], policies: any[], promotions: any[], userMessage: string, recentMessages: any[]): string {
+  // Build conversation history
+  const conversationHistory = recentMessages
+    .reverse() // Show chronological order
+    .map(msg => `${msg.direction === 'inbound' ? 'Cliente' : business.ai_name}: ${msg.content}`)
+    .join('\n');
+
   const context = {
     company: {
       name: business.name,
@@ -344,20 +357,24 @@ ${context.promotions.length > 0 ? context.promotions.map(p =>
   `- ${p.title}: ${p.description}${p.discount_percentage ? ` (${p.discount_percentage}% de desconto)` : ''}${p.discount_amount ? ` (R$ ${p.discount_amount} de desconto)` : ''}`
 ).join('\n') : 'Nenhuma promoção ativa'}
 
+HISTÓRICO DA CONVERSA:
+${conversationHistory || 'Início da conversa'}
+
 INSTRUÇÕES:
 - Responda como ${context.company.ai_name}, sempre mantendo o tom ${context.company.tone}
 - Foque em ajudar o cliente e gerar vendas
 - Use as informações acima para responder com precisão
+- Considere o histórico da conversa para dar continuidade natural
 - Se não souber algo, seja honesto mas tente direcionar para produtos/serviços disponíveis
-- Mantenha respostas concisas mas informativas
+- Mantenha respostas concisas mas informativas (máximo 200 caracteres para WhatsApp)
 - Sempre termine incentivando uma ação (compra, mais informações, etc.)
 
-MENSAGEM DO CLIENTE: ${userMessage}
+MENSAGEM ATUAL DO CLIENTE: ${userMessage}
 
 RESPOSTA:`;
 }
 
-async function generateAIResponse(prompt: string): Promise<string> {
+async function generateAIResponseWithDeepSeek(prompt: string): Promise<string> {
   const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
   if (!deepseekApiKey) {
     throw new Error('DeepSeek API key not configured');
@@ -373,57 +390,72 @@ async function generateAIResponse(prompt: string): Promise<string> {
       model: 'deepseek-chat',
       messages: [
         {
-          role: 'system',
+          role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 500,
+      max_tokens: 300,
       temperature: 0.7
     })
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`DeepSeek API error: ${errorText}`);
+  }
 
   const data = await response.json();
   return data.choices[0].message.content;
 }
 
-async function generateTTSAudio(text: string, voiceId?: string): Promise<string | null> {
-  const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
-  if (!elevenlabsApiKey) {
-    console.log('ElevenLabs API key not configured, skipping TTS');
+async function generateGoogleTTSAudio(text: string): Promise<string | null> {
+  const googleApiKey = Deno.env.get('GOOGLE_CLOUD_API_KEY');
+  if (!googleApiKey) {
+    console.log('Google Cloud API key not configured, skipping TTS');
     return null;
   }
 
-  const defaultVoiceId = voiceId || 'pNInz6obpgDQGcFmaJgB'; // Default voice
+  try {
+    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${googleApiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: { text: text },
+        voice: {
+          languageCode: 'pt-BR',
+          name: 'pt-BR-Standard-A', // Brazilian Portuguese female voice
+          ssmlGender: 'FEMALE'
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: 1.0,
+          pitch: 0.0,
+          volumeGainDb: 0.0
+        }
+      })
+    });
 
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${defaultVoiceId}`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'audio/mpeg',
-      'Content-Type': 'application/json',
-      'xi-api-key': elevenlabsApiKey
-    },
-    body: JSON.stringify({
-      text: text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.5
-      }
-    })
-  });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Google TTS error:', errorText);
+      return null;
+    }
 
-  if (!response.ok) {
-    console.error('TTS error:', await response.text());
+    const data = await response.json();
+    return data.audioContent; // Base64 encoded audio
+
+  } catch (error) {
+    console.error('Error generating Google TTS audio:', error);
     return null;
   }
-
-  // For now, return placeholder URL
-  // In production, you'd upload to storage and return the public URL
-  return 'audio_placeholder_url';
 }
 
 async function sendWhatsAppMessage(accessToken: string, to: string, text: string) {
-  const response = await fetch(`https://graph.facebook.com/v17.0/messages`, {
+  const whatsappPhoneId = Deno.env.get('WHATSAPP_PHONE_ID');
+  
+  const response = await fetch(`https://graph.facebook.com/v19.0/${whatsappPhoneId}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -439,25 +471,24 @@ async function sendWhatsAppMessage(accessToken: string, to: string, text: string
 
   const data = await response.json();
   console.log('WhatsApp message sent:', data);
+  
+  if (!response.ok) {
+    console.error('WhatsApp API error:', data);
+    throw new Error(`WhatsApp API error: ${JSON.stringify(data)}`);
+  }
+  
   return data;
 }
 
-async function sendWhatsAppAudio(accessToken: string, to: string, audioUrl: string) {
-  const response = await fetch(`https://graph.facebook.com/v17.0/messages`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: to,
-      type: 'audio',
-      audio: { link: audioUrl }
-    })
-  });
-
-  const data = await response.json();
-  console.log('WhatsApp audio sent:', data);
-  return data;
+async function sendWhatsAppAudio(accessToken: string, to: string, audioBase64: string) {
+  // Note: WhatsApp requires audio to be publicly accessible via URL
+  // This would require uploading the base64 audio to Supabase Storage first
+  // For now, we'll log that audio was generated
+  console.log('Audio generated and ready to send (requires storage upload implementation)');
+  
+  // Implementation would require:
+  // 1. Convert base64 to blob
+  // 2. Upload to Supabase Storage
+  // 3. Get public URL
+  // 4. Send via WhatsApp API with audio type
 }

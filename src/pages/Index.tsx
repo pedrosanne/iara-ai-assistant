@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -7,6 +6,7 @@ import CompanyForm from '@/components/company/CompanyForm';
 import ProductManager from '@/components/products/ProductManager';
 import ConversationSimulator from '@/components/simulator/ConversationSimulator';
 import LeadsManager from '@/components/leads/LeadsManager';
+import WhatsAppConfig from '@/components/whatsapp/WhatsAppConfig';
 import LoginForm from '@/components/auth/LoginForm';
 
 const Index = () => {
@@ -83,17 +83,7 @@ const Index = () => {
           </div>
         );
       case 'whatsapp':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Configuração WhatsApp</h1>
-              <p className="text-muted-foreground">Configure a integração com WhatsApp Business API</p>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-8 text-center">
-              <p className="text-muted-foreground">Funcionalidade em desenvolvimento</p>
-            </div>
-          </div>
-        );
+        return <WhatsAppConfig />;
       case 'analytics':
         return (
           <div className="space-y-6">
