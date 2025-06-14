@@ -93,6 +93,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Setting up auth listeners...');
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -101,32 +103,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Defer the business profile fetch to avoid blocking the auth state update
           setTimeout(() => {
             fetchBusinessProfile(session.user.id);
-          }, 0);
+          }, 100);
         } else {
           setBusinessProfile(null);
         }
+        
+        // Set loading to false after auth state is processed
         setIsLoading(false);
       }
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchBusinessProfile(session.user.id);
-      } else {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('Initial session check:', session?.user?.id, error);
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchBusinessProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
         setIsLoading(false);
       }
-    });
+    };
+
+    initializeAuth();
 
     return () => subscription.unsubscribe();
   }, []);
 
   const fetchBusinessProfile = async (userId: string) => {
     try {
+      console.log('Fetching business profile for user:', userId);
       const { data, error } = await supabase
         .from('business_profiles')
         .select('*')
@@ -138,13 +160,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Type assertion to ensure proper typing from database
       if (data) {
         const profile: BusinessProfile = {
           ...data,
           tone: data.tone as 'formal' | 'casual' | 'friendly' | 'professional'
         };
+        console.log('Business profile loaded:', profile.name);
         setBusinessProfile(profile);
+      } else {
+        console.log('No business profile found');
+        setBusinessProfile(null);
       }
     } catch (error) {
       console.error('Error fetching business profile:', error);
@@ -159,19 +184,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('Attempting login for:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
+      if (error) {
+        console.error('Login error:', error);
+      } else {
+        console.log('Login successful:', data.user?.id);
+      }
+      
       return { error };
     } catch (error) {
+      console.error('Login exception:', error);
       return { error };
     }
   };
 
   const register = async (email: string, password: string, name: string) => {
     try {
+      console.log('Attempting registration for:', email);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -183,9 +217,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
-      if (error) return { error };
+      if (error) {
+        console.error('Registration error:', error);
+        return { error };
+      }
 
-      // Criar usuário na tabela users
+      console.log('Registration successful:', data.user?.id);
+
+      // Create user in the users table
       if (data.user) {
         const { error: userError } = await supabase
           .from('users')
@@ -193,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             {
               id: data.user.id,
               email: data.user.email,
-              password_hash: '', // Será gerenciado pelo Supabase Auth
+              password_hash: '',
               name: name
             }
           ]);
@@ -205,11 +244,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error };
     } catch (error) {
+      console.error('Registration exception:', error);
       return { error };
     }
   };
 
   const logout = async () => {
+    console.log('Logging out...');
     await supabase.auth.signOut();
   };
 
